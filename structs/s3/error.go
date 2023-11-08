@@ -5,6 +5,7 @@ import (
 	"net/http"
 )
 
+// https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#RESTErrorResponses
 type Error struct {
 	XMLName   xml.Name `xml:"Error"`
 	Code      string   `xml:"Code"`
@@ -13,19 +14,16 @@ type Error struct {
 	RequestId string   `xml:"RequestId"`
 }
 
-func RespondError(w http.ResponseWriter, r *http.Request, code string, message string, resource string) error {
-
+func RespondError(w http.ResponseWriter, httpcode int, awscode string, message string, resource string) error {
 	e := Error{
-		Code:     code,
+		Code:     awscode,
 		Message:  message,
 		Resource: resource,
 	}
 
 	out, _ := xml.MarshalIndent(e, " ", "  ")
-	//fmt.Println(string(out))
-
 	w.Header().Set("Content-Type", "application/xml")
-	w.WriteHeader(http.StatusBadRequest)
+	w.WriteHeader(httpcode)
 	w.Write([]byte(out))
 
 	return nil

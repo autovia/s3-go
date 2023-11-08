@@ -8,20 +8,20 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 )
 
 func (app *App) ValidSignatureV4(r *http.Request) bool {
-	log.Printf("---%s---", r.Header.Get("Authorization"))
+	//log.Printf("---%s---", r.Header.Get("Authorization"))
 
-	headers := authorizationHeader(r.Header, *app.Addr, r.Header.Get("Authorization"))
+	headers := authorizationHeader(r.Header, r.Host, r.Header.Get("Authorization"))
 	if headers == nil {
 		return false
 	}
 
-	canonicalRequest := canonicalRequest(r.Method, r.URL.Path, r.URL.RawQuery, r.Body, headers)
+	query := r.URL.Query()
+	canonicalRequest := canonicalRequest(r.Method, r.URL.Path, query.Encode(), r.Body, headers)
 	if canonicalRequest == "" {
 		return false
 	}
@@ -36,8 +36,8 @@ func (app *App) ValidSignatureV4(r *http.Request) bool {
 		return false
 	}
 
-	log.Print(signature)
-	log.Print(headers["Signature"])
+	//log.Print(signature)
+	//log.Print(headers["Signature"])
 
 	return signature == headers["Signature"]
 }
@@ -73,25 +73,16 @@ func authorizationHeader(header http.Header, host string, req string) map[string
 func canonicalRequest(method string, requestURI string, rawQuery string, bodyReader io.ReadCloser, headers map[string]string) string {
 	signedHeaders := strings.Split(headers["SignedHeaders"], ";")
 
-	canonicalRequest := method + "\n"     // <HTTPMethod>
-	canonicalRequest += requestURI + "\n" // <CanonicalURI>
-	canonicalRequest += rawQuery + "\n"   // <CanonicalQueryString>
+	canonicalRequest := method + "\n"                                    // <HTTPMethod>
+	canonicalRequest += requestURI + "\n"                                // <CanonicalURI>
+	canonicalRequest += strings.Replace(rawQuery, "+", "%20", -1) + "\n" // <CanonicalQueryString>
 
 	for _, v := range signedHeaders {
 		canonicalRequest += v + ":" + strings.Join(strings.Fields(headers[v]), " ") + "\n" // <CanonicalHeaders>
 	}
 	canonicalRequest += "\n"
 	canonicalRequest += headers["SignedHeaders"] + "\n" // <SignedHeaders>
-
-	body, err := io.ReadAll(bodyReader)
-	if err != nil {
-		return ""
-	}
-
-	canonicalRequest += HexSHA256Hash(body) // Hex(SHA256Hash(<payload>)
-	bodyReader.Close()
-
-	log.Print(canonicalRequest)
+	canonicalRequest += headers["x-amz-content-sha256"] // Hex(SHA256Hash(<payload>)
 
 	return canonicalRequest
 }
@@ -107,7 +98,7 @@ func stringToSign(canonicalRequest string, accessKey string, headers map[string]
 	stringToSign += scope + "\n"
 	stringToSign += HexSHA256Hash([]byte(canonicalRequest))
 
-	log.Print(stringToSign)
+	//log.Print(stringToSign)
 
 	return stringToSign
 }

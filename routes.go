@@ -9,13 +9,21 @@ import (
 )
 
 func InitRoutes(app *S.App) {
-	// Public handlers
-	app.Router.Handle("/health", S.Public{App: app, R: map[string]any{
-		"GET": handlers.Health,
-	}})
-
 	app.Router.Handle("/", S.Auth{App: app, R: map[string]any{
 		"GET": handlers.ListBuckets,
-		"PUT": handlers.CreateBucket,
+	}})
+
+	app.Router.Handle("/{bucket}", S.Auth{App: app, R: map[string]any{
+		"GET":    handlers.ListObjectsV2,
+		"PUT":    handlers.CreateBucket,
+		"DELETE": handlers.DeleteBucket,
+		"HEAD":   handlers.HeadBucket,
+	}})
+
+	app.Router.Handle("/{bucket}/", S.Auth{App: app, R: map[string]any{
+		"GET":    handlers.GetObject,
+		"PUT":    handlers.PutObject,
+		"DELETE": handlers.DeleteObject,
+		"HEAD":   handlers.HeadObject,
 	}})
 }
