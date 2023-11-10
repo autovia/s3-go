@@ -6,6 +6,7 @@ package structs
 import (
 	"bytes"
 	"io"
+	"net/url"
 	"reflect"
 	"testing"
 )
@@ -49,8 +50,8 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
 
 	t.Run("canonicalRequest", func(t *testing.T) {
 		headers := authorizationHeader(header, "examplebucket.s3.amazonaws.com", headerStr)
-
-		result := canonicalRequest("GET", "/test.txt", "", io.NopCloser(bytes.NewReader([]byte(""))), headers)
+		u, _ := url.Parse("/test.txt")
+		result := canonicalRequest("GET", u, "", io.NopCloser(bytes.NewReader([]byte(""))), headers)
 		if expectedCanonicalRequest != result {
 			t.Errorf("result was incorrect\ngot: %v\n\nwant: %v", result, expectedCanonicalRequest)
 		}
@@ -120,8 +121,8 @@ date;host;x-amz-content-sha256;x-amz-date;x-amz-storage-class
 
 	t.Run("canonicalRequest", func(t *testing.T) {
 		headers := authorizationHeader(header, "examplebucket.s3.amazonaws.com", headerStr)
-
-		result := canonicalRequest("PUT", "/test%24file.text", "", io.NopCloser(bytes.NewReader([]byte("Welcome to Amazon S3."))), headers)
+		u, _ := url.Parse("/test%24file.text")
+		result := canonicalRequest("PUT", u, "", io.NopCloser(bytes.NewReader([]byte("Welcome to Amazon S3."))), headers)
 		if expectedCanonicalRequest != result {
 			t.Errorf("result was incorrect\ngot: %v\n\nwant: %v", result, expectedCanonicalRequest)
 		}
@@ -185,8 +186,8 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
 
 	t.Run("canonicalRequest", func(t *testing.T) {
 		headers := authorizationHeader(header, "examplebucket.s3.amazonaws.com", headerStr)
-
-		result := canonicalRequest("GET", "/", "lifecycle=", io.NopCloser(bytes.NewReader([]byte(""))), headers)
+		u, _ := url.Parse("/")
+		result := canonicalRequest("GET", u, "lifecycle=", io.NopCloser(bytes.NewReader([]byte(""))), headers)
 		if expectedCanonicalRequest != result {
 			t.Errorf("result was incorrect\ngot: %v\n\nwant: %v", result, expectedCanonicalRequest)
 		}
@@ -250,8 +251,8 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
 
 	t.Run("canonicalRequest", func(t *testing.T) {
 		headers := authorizationHeader(header, "examplebucket.s3.amazonaws.com", headerStr)
-
-		result := canonicalRequest("GET", "/", "max-keys=2&prefix=J", io.NopCloser(bytes.NewReader([]byte(""))), headers)
+		u, _ := url.Parse("/")
+		result := canonicalRequest("GET", u, "max-keys=2&prefix=J", io.NopCloser(bytes.NewReader([]byte(""))), headers)
 		if expectedCanonicalRequest != result {
 			t.Errorf("result was incorrect\ngot: %v\n\nwant: %v", result, expectedCanonicalRequest)
 		}

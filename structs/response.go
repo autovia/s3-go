@@ -25,7 +25,7 @@ func (app *App) RespondJSON(w http.ResponseWriter, r *http.Request, payload any)
 	return nil
 }
 
-func (app *App) RespondXML(w http.ResponseWriter, r *http.Request, payload any, code int) error {
+func (app *App) RespondXML(w http.ResponseWriter, code int, payload any) error {
 
 	out, _ := xml.MarshalIndent(payload, " ", "  ")
 	//fmt.Println(string(out))

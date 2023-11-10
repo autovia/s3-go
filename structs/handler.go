@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/autovia/s3/structs/s3"
+	"github.com/autovia/s3-go/structs/s3"
 )
 
 type Public struct {

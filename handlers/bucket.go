@@ -4,14 +4,12 @@
 package handlers
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"strings"
 
-	S "github.com/autovia/s3/structs"
-	"github.com/autovia/s3/structs/s3"
+	S "github.com/autovia/s3-go/structs"
+	"github.com/autovia/s3-go/structs/s3"
 )
 
 func ListBuckets(app *S.App, w http.ResponseWriter, r *http.Request) error {
@@ -35,18 +33,20 @@ func ListBuckets(app *S.App, w http.ResponseWriter, r *http.Request) error {
 		Buckets: buckets,
 	}
 
-	return app.RespondXML(w, r, bucketList, http.StatusOK)
+	return app.RespondXML(w, http.StatusOK, bucketList)
 }
 
 func CreateBucket(app *S.App, w http.ResponseWriter, r *http.Request) error {
 	log.Printf("#CreateBucket: %v\n", r)
 
-	name, found := strings.CutPrefix(r.URL.Path, "/")
-	if !found {
-		return nil
+	name, path, err := app.ParseRequest(r)
+	if err != nil {
+		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
 	}
 
-	path := fmt.Sprintf("%s/%s", *app.Mount, name)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
+	}
 
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		return s3.RespondError(w, 409, "BucketAlreadyExists", "BucketAlreadyExists", name)
@@ -56,52 +56,48 @@ func CreateBucket(app *S.App, w http.ResponseWriter, r *http.Request) error {
 		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
 	}
 
-	return app.RespondXML(w, r, nil, http.StatusOK)
+	return app.RespondXML(w, http.StatusOK, nil)
 }
 
 func HeadBucket(app *S.App, w http.ResponseWriter, r *http.Request) error {
 	log.Printf("#HeadBucket: %v\n", r)
 
-	name, found := strings.CutPrefix(r.URL.Path, "/")
-	if !found {
-		return nil
+	name, path, err := app.ParseRequest(r)
+	if err != nil {
+		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
 	}
-
-	path := fmt.Sprintf("%s/%s", *app.Mount, name)
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return s3.RespondError(w, 400, "NoSuchBucket", "NoSuchBucket", name)
 	}
 
-	return app.Respond(w, 200, nil, nil)
+	return app.Respond(w, http.StatusOK, nil, nil)
 }
 
 func DeleteBucket(app *S.App, w http.ResponseWriter, r *http.Request) error {
 	log.Printf("#DeleteBucket: %v\n", r)
 
-	name, found := strings.CutPrefix(r.URL.Path, "/")
-	if !found {
-		return nil
-	}
-
-	path := fmt.Sprintf("%s/%s", *app.Mount, name)
-
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
-	}
-
-	contents, err := os.ReadDir(path)
+	name, path, err := app.ParseRequest(r)
 	if err != nil {
 		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
 	}
 
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
+	}
+
+	contents, err := os.ReadDir(path)
+	if err != nil {
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
+	}
+
 	if len(contents) > 0 {
-		return s3.RespondError(w, 409, "BucketNotEmpty", "BucketNotEmpty", name)
+		return s3.RespondError(w, http.StatusConflict, "BucketNotEmpty", "BucketNotEmpty", name)
 	}
 
 	if err := os.Remove(path); err != nil {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
 	}
 
-	return app.RespondXML(w, r, nil, http.StatusNoContent)
+	return app.RespondXML(w, http.StatusNoContent, nil)
 }

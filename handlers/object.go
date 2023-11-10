@@ -8,11 +8,11 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
-	"strings"
 
-	S "github.com/autovia/s3/structs"
-	"github.com/autovia/s3/structs/s3"
+	S "github.com/autovia/s3-go/structs"
+	"github.com/autovia/s3-go/structs/s3"
 )
 
 const iso8601TimeFormat = "2006-01-02T15:04:05.000Z"
@@ -28,12 +28,12 @@ func ListObjectsV2(app *S.App, w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", bucket)
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", bucket)
 	}
 
 	contents, err := os.ReadDir(path)
 	if err != nil {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", bucket)
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", bucket)
 	}
 
 	objects := []s3.Object{}
@@ -62,52 +62,74 @@ func ListObjectsV2(app *S.App, w http.ResponseWriter, r *http.Request) error {
 		CommonPrefixes: prefixes,
 	}
 
-	return app.RespondXML(w, r, listBucketResult, http.StatusOK)
+	return app.RespondXML(w, http.StatusOK, listBucketResult)
 }
 
 func PutObject(app *S.App, w http.ResponseWriter, r *http.Request) error {
 	log.Printf("#PutObject: %v\n", r)
 
-	name, found := strings.CutPrefix(r.URL.Path, "/")
-	if !found {
-		return nil
-	}
-
-	path := fmt.Sprintf("%s/%s", *app.Mount, name)
-	log.Print(path)
-
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
-	}
-
-	defer r.Body.Close()
-	out, err := os.Create(path)
+	name, path, err := app.ParseRequest(r)
 	if err != nil {
 		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
 	}
-	defer out.Close()
-	io.Copy(out, r.Body)
 
-	return app.Respond(w, 200, nil, nil)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
+	}
+
+	targetFile, err := os.Create(path)
+	if err != nil {
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
+	}
+	defer targetFile.Close()
+
+	source := r.Header.Get("X-Amz-Copy-Source")
+	if len(source) > 0 {
+		u, err := url.QueryUnescape(source)
+		if err != nil {
+			return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
+		}
+		log.Print(">>>> ", u)
+		sourcePath := fmt.Sprintf("%s/%s", *app.Mount, u)
+		sourceFile, err := os.Open(sourcePath)
+		if err != nil {
+			return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
+		}
+		defer sourceFile.Close()
+		io.Copy(targetFile, sourceFile)
+
+		stats, err := os.Stat(sourcePath)
+		if err != nil {
+			return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
+		}
+		t := stats.ModTime()
+		return app.RespondXML(w, http.StatusOK, s3.CopyObjectResponse{
+			LastModified: t.Format(iso8601TimeFormat),
+			ETag:         "123",
+		})
+	}
+
+	defer r.Body.Close()
+	io.Copy(targetFile, r.Body)
+
+	return app.Respond(w, http.StatusOK, nil, nil)
 }
 
 func HeadObject(app *S.App, w http.ResponseWriter, r *http.Request) error {
 	log.Printf("#HeadObject: %v\n", r)
 
-	name, found := strings.CutPrefix(r.URL.Path, "/")
-	if !found {
-		return nil
+	name, path, err := app.ParseRequest(r)
+	if err != nil {
+		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
 	}
 
-	path := fmt.Sprintf("%s/%s", *app.Mount, name)
-
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return s3.RespondError(w, 400, "NoSuchKey", "NoSuchKey", name)
+		return s3.RespondError(w, http.StatusBadRequest, "NoSuchKey", "NoSuchKey", name)
 	}
 
 	file, err := os.Stat(path)
 	if err != nil {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
 	}
 
 	headers := make(map[string]string)
@@ -115,18 +137,22 @@ func HeadObject(app *S.App, w http.ResponseWriter, r *http.Request) error {
 	headers["Content-Length"] = fmt.Sprintf("%v", file.Size())
 	headers["Last-Modified"] = t.Format(iso8601TimeFormat)
 
-	return app.Respond(w, 200, headers, nil)
+	return app.Respond(w, http.StatusOK, headers, nil)
 }
 
 func GetObject(app *S.App, w http.ResponseWriter, r *http.Request) error {
 	log.Printf("#GetObject: %v\n", r)
 
-	name, found := strings.CutPrefix(r.URL.Path, "/")
-	if !found {
-		return nil
+	query := r.URL.Query()
+	if _, ok := query["versioning"]; ok {
+		return app.RespondXML(w, http.StatusOK, s3.VersioningConfiguration{Status: "Suspended"})
+
 	}
 
-	path := fmt.Sprintf("%s/%s", *app.Mount, name)
+	name, path, err := app.ParseRequest(r)
+	if err != nil {
+		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
+	}
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return s3.RespondError(w, 400, "NoSuchKey", "NoSuchKey", name)
@@ -134,11 +160,11 @@ func GetObject(app *S.App, w http.ResponseWriter, r *http.Request) error {
 
 	file, err := os.Open(path)
 	if err != nil {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
 	}
 	stats, err := file.Stat()
 	if err != nil {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
 	}
 
 	headers := make(map[string]string)
@@ -146,25 +172,23 @@ func GetObject(app *S.App, w http.ResponseWriter, r *http.Request) error {
 	headers["Content-Length"] = fmt.Sprintf("%v", stats.Size())
 	headers["Last-Modified"] = t.Format(iso8601TimeFormat)
 
-	return app.RespondFile(w, 200, headers, file)
+	return app.RespondFile(w, http.StatusOK, headers, file)
 }
 
 func DeleteObject(app *S.App, w http.ResponseWriter, r *http.Request) error {
 	log.Printf("#DeleteObject: %v\n", r)
 
-	name, found := strings.CutPrefix(r.URL.Path, "/")
-	if !found {
-		return nil
+	name, path, err := app.ParseRequest(r)
+	if err != nil {
+		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
 	}
 
-	path := fmt.Sprintf("%s/%s", *app.Mount, name)
-
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
 	}
 
 	if err := os.Remove(path); err != nil {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
 	}
 
 	return nil

@@ -4,8 +4,8 @@
 package main
 
 import (
-	"github.com/autovia/s3/handlers"
-	S "github.com/autovia/s3/structs"
+	"github.com/autovia/s3-go/handlers"
+	S "github.com/autovia/s3-go/structs"
 )
 
 func InitRoutes(app *S.App) {

@@ -40,7 +40,7 @@ Run server
 Requires go 1.22 with new mux router
 
 ```shell
-GOTOOOLCHAIN=local gotip run main.go
+GOTOOOLCHAIN=local gotip run .
 ```
 
 List buckets

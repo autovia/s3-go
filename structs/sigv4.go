@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -21,7 +22,7 @@ func (app *App) ValidSignatureV4(r *http.Request) bool {
 	}
 
 	query := r.URL.Query()
-	canonicalRequest := canonicalRequest(r.Method, r.URL.Path, query.Encode(), r.Body, headers)
+	canonicalRequest := canonicalRequest(r.Method, r.URL, query.Encode(), r.Body, headers)
 	if canonicalRequest == "" {
 		return false
 	}
@@ -70,11 +71,11 @@ func authorizationHeader(header http.Header, host string, req string) map[string
 	return headers
 }
 
-func canonicalRequest(method string, requestURI string, rawQuery string, bodyReader io.ReadCloser, headers map[string]string) string {
+func canonicalRequest(method string, requestURI *url.URL, rawQuery string, bodyReader io.ReadCloser, headers map[string]string) string {
 	signedHeaders := strings.Split(headers["SignedHeaders"], ";")
 
 	canonicalRequest := method + "\n"                                    // <HTTPMethod>
-	canonicalRequest += requestURI + "\n"                                // <CanonicalURI>
+	canonicalRequest += requestURI.EscapedPath() + "\n"                  // <CanonicalURI>
 	canonicalRequest += strings.Replace(rawQuery, "+", "%20", -1) + "\n" // <CanonicalQueryString>
 
 	for _, v := range signedHeaders {

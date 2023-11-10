@@ -57,3 +57,14 @@ type Owner struct {
 	ID          string `xml:"ID"`
 	DisplayName string `xml:"DisplayName"`
 }
+
+type VersioningConfiguration struct {
+	XMLName xml.Name `xml:"VersioningConfiguration"`
+	Status  string   `xml:"Status"`
+}
+
+type CopyObjectResponse struct {
+	XMLName      xml.Name `xml:"CopyObjectResponse"`
+	LastModified string
+	ETag         string
+}

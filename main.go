@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 
-	S "github.com/autovia/s3/structs"
+	S "github.com/autovia/s3-go/structs"
 )
 
 func main() {
