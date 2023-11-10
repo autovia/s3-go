@@ -12,8 +12,8 @@ import (
 	"github.com/autovia/s3-go/structs/s3"
 )
 
-func ListBuckets(app *S.App, w http.ResponseWriter, r *http.Request) error {
-	log.Printf("#ListBuckets %v\n", r)
+func ListBuckets(app *S.App, w http.ResponseWriter, req *http.Request) error {
+	log.Printf("#ListBuckets %v\n", req)
 
 	files, err := os.ReadDir(*app.Mount)
 	if err != nil {
@@ -36,67 +36,58 @@ func ListBuckets(app *S.App, w http.ResponseWriter, r *http.Request) error {
 	return app.RespondXML(w, http.StatusOK, bucketList)
 }
 
-func CreateBucket(app *S.App, w http.ResponseWriter, r *http.Request) error {
+func CreateBucket(app *S.App, w http.ResponseWriter, r *S.Request) error {
 	log.Printf("#CreateBucket: %v\n", r)
 
-	name, path, err := app.ParseRequest(r)
-	if err != nil {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
+	if _, err := os.Stat(r.Path); !os.IsNotExist(err) {
+		return s3.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
 	}
 
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
+	if _, err := os.Stat(r.Path); !os.IsNotExist(err) {
+		return s3.RespondError(w, 409, "BucketAlreadyExists", "BucketAlreadyExists", r.Bucket)
 	}
 
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		return s3.RespondError(w, 409, "BucketAlreadyExists", "BucketAlreadyExists", name)
-	}
-
-	if err := os.Mkdir(path, os.ModePerm); err != nil {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
+	if err := os.Mkdir(r.Path, os.ModePerm); err != nil {
+		return s3.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
 	}
 
 	return app.RespondXML(w, http.StatusOK, nil)
 }
 
-func HeadBucket(app *S.App, w http.ResponseWriter, r *http.Request) error {
+func HeadBucket(app *S.App, w http.ResponseWriter, r *S.Request) error {
 	log.Printf("#HeadBucket: %v\n", r)
 
-	name, path, err := app.ParseRequest(r)
-	if err != nil {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
-	}
-
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return s3.RespondError(w, 400, "NoSuchBucket", "NoSuchBucket", name)
+	if _, err := os.Stat(r.Path); os.IsNotExist(err) {
+		return s3.RespondError(w, 400, "NoSuchBucket", "NoSuchBucket", r.Bucket)
 	}
 
 	return app.Respond(w, http.StatusOK, nil, nil)
 }
 
-func DeleteBucket(app *S.App, w http.ResponseWriter, r *http.Request) error {
+func GetBucketVersioning(app *S.App, w http.ResponseWriter, r *S.Request) error {
+	log.Printf("#GetBucketVersioning: %v\n", r)
+
+	return app.RespondXML(w, http.StatusOK, s3.VersioningConfiguration{Status: "Suspended"})
+}
+
+func DeleteBucket(app *S.App, w http.ResponseWriter, r *S.Request) error {
 	log.Printf("#DeleteBucket: %v\n", r)
 
-	name, path, err := app.ParseRequest(r)
-	if err != nil {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", name)
+	if _, err := os.Stat(r.Path); os.IsNotExist(err) {
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Bucket)
 	}
 
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
-	}
-
-	contents, err := os.ReadDir(path)
+	contents, err := os.ReadDir(r.Path)
 	if err != nil {
-		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Bucket)
 	}
 
 	if len(contents) > 0 {
-		return s3.RespondError(w, http.StatusConflict, "BucketNotEmpty", "BucketNotEmpty", name)
+		return s3.RespondError(w, http.StatusConflict, "BucketNotEmpty", "BucketNotEmpty", r.Bucket)
 	}
 
-	if err := os.Remove(path); err != nil {
-		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", name)
+	if err := os.Remove(r.Path); err != nil {
+		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Bucket)
 	}
 
 	return app.RespondXML(w, http.StatusNoContent, nil)

@@ -68,3 +68,26 @@ type CopyObjectResponse struct {
 	LastModified string
 	ETag         string
 }
+
+type ListVersionsResult struct {
+	XMLName             xml.Name `xml:"ListVersionsResult"`
+	Name                string
+	Prefix              string
+	KeyMarker           string
+	NextKeyMarker       string `xml:"NextKeyMarker,omitempty"`
+	NextVersionIDMarker string `xml:"NextVersionIdMarker"`
+	VersionIDMarker     string `xml:"VersionIdMarker"`
+	MaxKeys             int
+	Delimiter           string `xml:"Delimiter,omitempty"`
+	IsTruncated         bool
+	CommonPrefixes      []CommonPrefix
+	Version             []ObjectVersion
+	EncodingType        string `xml:"EncodingType,omitempty"`
+}
+
+type ObjectVersion struct {
+	Object
+	IsLatest       bool
+	VersionID      string `xml:"VersionId"`
+	isDeleteMarker bool
+}

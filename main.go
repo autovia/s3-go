@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/autovia/s3-go/handlers"
 	S "github.com/autovia/s3-go/structs"
 )
 
@@ -22,7 +23,18 @@ func main() {
 
 	// Router
 	app.Router = http.NewServeMux()
-	InitRoutes(app)
+	routes := map[string]any{
+		"GET":    handlers.Get,
+		"PUT":    handlers.Put,
+		"DELETE": handlers.Delete,
+		"HEAD":   handlers.Head,
+	}
+
+	app.Router.Handle("/", S.Auth{App: app, R: map[string]any{
+		"GET": handlers.ListBuckets,
+	}})
+	app.Router.Handle("/{bucket}", S.Auth{App: app, R: routes})
+	app.Router.Handle("/{bucket}/", S.Auth{App: app, R: routes})
 
 	// Server
 	srv := &http.Server{

@@ -6,6 +6,7 @@ package structs
 import (
 	"encoding/json"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -28,7 +29,7 @@ func (app *App) RespondJSON(w http.ResponseWriter, r *http.Request, payload any)
 func (app *App) RespondXML(w http.ResponseWriter, code int, payload any) error {
 
 	out, _ := xml.MarshalIndent(payload, " ", "  ")
-	//fmt.Println(string(out))
+	fmt.Println(string(out))
 
 	w.Header().Set("Content-Type", "application/xml")
 	w.WriteHeader(code)
@@ -41,7 +42,7 @@ func (app *App) Respond(w http.ResponseWriter, code int, headers map[string]stri
 	if len(headers) > 0 {
 		for k, v := range headers {
 			w.Header().Set(k, v)
-			log.Print(k, v)
+			log.Println("metadata >>", k, v)
 		}
 	}
 
