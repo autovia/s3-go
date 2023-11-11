@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -60,7 +61,13 @@ func ListObjectsV2(app *S.App, w http.ResponseWriter, r *S.Request) error {
 func CopyObject(app *S.App, w http.ResponseWriter, r *S.Request, req *http.Request) error {
 	log.Printf("#CopyObject: %v\n", r)
 
-	sourceFile, err := os.Open(r.Path)
+	source := req.Header.Get("X-Amz-Copy-Source")
+	sourcePath, err := url.QueryUnescape(source)
+	if err != nil {
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Bucket)
+	}
+
+	sourceFile, err := os.Open(*app.Mount + sourcePath)
 	if err != nil {
 		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
 	}

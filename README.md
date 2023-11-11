@@ -35,8 +35,6 @@ region = us-east-1
 
 Run server
 
-Requires go 1.22 with new mux router
-
 ```shell
 go run main.go
 ```

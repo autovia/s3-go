@@ -1,11 +1,12 @@
+// Copyright (c) Autovia GmbH
+// SPDX-License-Identifier: Apache-2.0
+
 package handlers
 
 import (
 	"log"
 	"net/http"
-	"net/url"
 	"os"
-	"strings"
 
 	S "github.com/autovia/s3-go/structs"
 )
@@ -27,7 +28,7 @@ func Get(a *S.App, w http.ResponseWriter, req *http.Request) error {
 		return a.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Bucket)
 	}
 
-	if len(req.URL.Query().Get("versioning")) > 0 {
+	if req.URL.Query().Has("versioning") {
 		return GetBucketVersioning(a, w, r)
 	}
 
@@ -35,7 +36,7 @@ func Get(a *S.App, w http.ResponseWriter, req *http.Request) error {
 		return ListObjectsV2(a, w, r)
 	}
 
-	if len(req.URL.Query().Get("versions")) > 0 {
+	if req.URL.Query().Has("versions") {
 		return ListObjectVersions(a, w, r)
 	}
 
@@ -51,22 +52,12 @@ func Put(a *S.App, w http.ResponseWriter, req *http.Request) error {
 	}
 
 	if len(r.Key) > 0 {
-		source := req.Header.Get("X-Amz-Copy-Source")
-		sourcePath, err := url.QueryUnescape(source)
-		if err != nil {
-			return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
-		}
-		if len(sourcePath) > 0 {
-			path, ok := strings.CutPrefix(sourcePath, "/")
-			if !ok {
-				return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
-			}
-			r.Key = sourcePath
-			r.Path = strings.Join([]string{*a.Mount, path}, "/")
+		if len(req.Header.Get("X-Amz-Copy-Source")) > 0 {
 			return CopyObject(a, w, r, req)
 		}
 		return PutObject(a, w, r, req)
 	}
+
 	return CreateBucket(a, w, r)
 }
 

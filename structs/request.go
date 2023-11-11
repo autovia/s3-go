@@ -65,7 +65,3 @@ func (app *App) ParseRequest(r *http.Request) (*Request, error) {
 	log.Printf(">>> bucket: %s, key: %s, prefix: %v, path: %s, split: %v\n", req.Bucket, req.Key, len(prefix) > 0, req.Path, len(split))
 	return &req, nil
 }
-
-func (r *Request) UpdateKey(key string) {
-
-}

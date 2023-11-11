@@ -18,7 +18,6 @@ func main() {
 	app.AccessKey = flag.String("access-key", "user", "aws_access_key_id")
 	app.SecretKey = flag.String("secret-key", "password", "aws_secret_access_key")
 	app.Mount = flag.String("mount", "./mount", "root directory containing the buckets and files")
-
 	flag.Parse()
 
 	// Router
