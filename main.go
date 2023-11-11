@@ -23,18 +23,12 @@ func main() {
 
 	// Router
 	app.Router = http.NewServeMux()
-	routes := map[string]any{
+	app.Router.Handle("/", S.Auth{App: app, R: map[string]any{
 		"GET":    handlers.Get,
 		"PUT":    handlers.Put,
 		"DELETE": handlers.Delete,
 		"HEAD":   handlers.Head,
-	}
-
-	app.Router.Handle("/", S.Auth{App: app, R: map[string]any{
-		"GET": handlers.ListBuckets,
 	}})
-	app.Router.Handle("/{bucket}", S.Auth{App: app, R: routes})
-	app.Router.Handle("/{bucket}/", S.Auth{App: app, R: routes})
 
 	// Server
 	srv := &http.Server{

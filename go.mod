@@ -1,3 +1,3 @@
 module github.com/autovia/s3-go
 
-go 1.22
+go 1.21

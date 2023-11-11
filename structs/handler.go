@@ -7,8 +7,7 @@ import (
 	"context"
 	"log"
 	"net/http"
-
-	"github.com/autovia/s3-go/structs/s3"
+	//"github.com/autovia/s3-go/structs/s3"
 )
 
 type Public struct {
@@ -43,13 +42,13 @@ func (a Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if _, ok := a.R[r.Method]; !ok {
 		log.Print("http method not allowed")
-		s3.RespondError(w, 405, "MethodNotAllowed", "MethodNotAllowed", "")
+		a.RespondError(w, 405, "MethodNotAllowed", "MethodNotAllowed", "")
 		return
 	}
 
 	if !a.ValidSignatureV4(r) {
 		log.Print("signature not valid")
-		s3.RespondError(w, 401, "UnauthorizedAccess", "UnauthorizedAccess", "")
+		a.RespondError(w, 401, "UnauthorizedAccess", "UnauthorizedAccess", "")
 		return
 	}
 

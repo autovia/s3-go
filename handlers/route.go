@@ -8,20 +8,23 @@ import (
 	"strings"
 
 	S "github.com/autovia/s3-go/structs"
-	"github.com/autovia/s3-go/structs/s3"
 )
 
 func Get(a *S.App, w http.ResponseWriter, req *http.Request) error {
 	log.Printf(">>> GET %v\n", req)
 
+	if req.URL.Path == "/" {
+		return ListBuckets(a, w, req)
+	}
+
 	r, err := a.ParseRequest(req)
 	if err != nil {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
+		return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
 	}
 
 	stat, err := os.Stat(r.Path)
 	if os.IsNotExist(err) {
-		return s3.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Bucket)
+		return a.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Bucket)
 	}
 
 	if len(req.URL.Query().Get("versioning")) > 0 {
@@ -44,19 +47,19 @@ func Put(a *S.App, w http.ResponseWriter, req *http.Request) error {
 
 	r, err := a.ParseRequest(req)
 	if err != nil {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
+		return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
 	}
 
 	if len(r.Key) > 0 {
 		source := req.Header.Get("X-Amz-Copy-Source")
 		sourcePath, err := url.QueryUnescape(source)
 		if err != nil {
-			return s3.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
+			return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
 		}
 		if len(sourcePath) > 0 {
 			path, ok := strings.CutPrefix(sourcePath, "/")
 			if !ok {
-				return s3.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
+				return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
 			}
 			r.Key = sourcePath
 			r.Path = strings.Join([]string{*a.Mount, path}, "/")
@@ -72,7 +75,7 @@ func Delete(a *S.App, w http.ResponseWriter, req *http.Request) error {
 
 	r, err := a.ParseRequest(req)
 	if err != nil {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
+		return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
 	}
 
 	if len(r.Key) > 0 {
@@ -87,7 +90,7 @@ func Head(a *S.App, w http.ResponseWriter, req *http.Request) error {
 
 	r, err := a.ParseRequest(req)
 	if err != nil {
-		return s3.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
+		return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
 	}
 
 	if len(r.Key) > 0 {

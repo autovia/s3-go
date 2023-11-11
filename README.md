@@ -13,8 +13,6 @@ Tested with:
 * aws-sdk-go-v2 v1.22.1
 * aws-sdk-ruby3/3.185.2
 
-Requires go 1.22
-
 ## Development setup
 
 Configure aws cli
@@ -40,7 +38,7 @@ Run server
 Requires go 1.22 with new mux router
 
 ```shell
-GOTOOOLCHAIN=local gotip run .
+go run main.go
 ```
 
 List buckets

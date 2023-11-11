@@ -1,7 +1,7 @@
 // Copyright (c) Autovia GmbH
 // SPDX-License-Identifier: Apache-2.0
 
-package s3
+package structs
 
 import (
 	"encoding/xml"
