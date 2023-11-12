@@ -91,3 +91,28 @@ type ObjectVersion struct {
 	VersionID      string `xml:"VersionId"`
 	isDeleteMarker bool
 }
+
+type Delete struct {
+	Objects []Object `xml:"Object"`
+	Quiet   bool
+}
+
+type DeleteObjectsResponse struct {
+	XMLName        xml.Name        `xml:"DeleteObjectsResponse"`
+	DeletedObjects []DeletedObject `xml:"Deleted,omitempty"`
+	Errors         []DeleteError   `xml:"Error,omitempty"`
+}
+
+type DeleteError struct {
+	Code      string
+	Message   string
+	Key       string
+	VersionID string `xml:"VersionId"`
+}
+
+type DeletedObject struct {
+	DeleteMarker          bool   `xml:"DeleteMarker,omitempty"`
+	DeleteMarkerVersionID string `xml:"DeleteMarkerVersionId,omitempty"`
+	Key                   string `xml:"Key,omitempty"`
+	VersionID             string `xml:"VersionId,omitempty"`
+}

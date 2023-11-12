@@ -61,6 +61,21 @@ func Put(a *S.App, w http.ResponseWriter, req *http.Request) error {
 	return CreateBucket(a, w, r)
 }
 
+func Post(a *S.App, w http.ResponseWriter, req *http.Request) error {
+	log.Printf(">>> POST %v\n", req)
+
+	r, err := a.ParseRequest(req)
+	if err != nil {
+		return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
+	}
+
+	if req.URL.Query().Has("delete") {
+		return DeleteObjects(a, w, r, req)
+	}
+
+	return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
+}
+
 func Delete(a *S.App, w http.ResponseWriter, req *http.Request) error {
 	log.Printf(">>> DELETE %v\n", req)
 

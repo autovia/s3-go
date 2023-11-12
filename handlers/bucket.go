@@ -39,10 +39,6 @@ func CreateBucket(app *S.App, w http.ResponseWriter, r *S.Request) error {
 	log.Printf("#CreateBucket: %v\n", r)
 
 	if _, err := os.Stat(r.Path); !os.IsNotExist(err) {
-		return app.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
-	}
-
-	if _, err := os.Stat(r.Path); !os.IsNotExist(err) {
 		return app.RespondError(w, 409, "BucketAlreadyExists", "BucketAlreadyExists", r.Bucket)
 	}
 

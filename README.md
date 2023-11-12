@@ -13,6 +13,8 @@ Tested with:
 * aws-sdk-go-v2 v1.22.1
 * aws-sdk-ruby3/3.185.2
 
+Compatibility tests with [s3-testsuite](https://github.com/autovia/s3-testsuite)
+
 ## Development setup
 
 Configure aws cli

@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"encoding/xml"
 	"fmt"
 	"io"
 	"log"
@@ -15,7 +16,8 @@ import (
 	S "github.com/autovia/s3-go/structs"
 )
 
-const iso8601TimeFormat = "2006-01-02T15:04:05.000Z"
+const ISO8601UTCFormat = "2006-01-02T15:04:05.000Z"
+const RFC822Format = "Mon, 2 Jan 2006 15:04:05 GMT"
 
 func ListObjectsV2(app *S.App, w http.ResponseWriter, r *S.Request) error {
 	log.Printf("#ListObjectsV2 %v\n", r)
@@ -37,7 +39,7 @@ func ListObjectsV2(app *S.App, w http.ResponseWriter, r *S.Request) error {
 			t := fileInfo.ModTime()
 			objects = append(objects, S.Object{
 				Key:          fileInfo.Name(),
-				LastModified: t.Format(iso8601TimeFormat),
+				LastModified: t.Format(RFC822Format),
 				Size:         fileInfo.Size(),
 				ETag:         fileInfo.Name(),
 				StorageClass: "STANDARD"})
@@ -86,7 +88,7 @@ func CopyObject(app *S.App, w http.ResponseWriter, r *S.Request, req *http.Reque
 	}
 	t := stats.ModTime()
 	return app.RespondXML(w, http.StatusOK, S.CopyObjectResponse{
-		LastModified: t.Format(iso8601TimeFormat),
+		LastModified: t.Format(ISO8601UTCFormat),
 		ETag:         "123",
 	})
 }
@@ -133,7 +135,7 @@ func HeadObject(app *S.App, w http.ResponseWriter, r *S.Request) error {
 	headers := make(map[string]string)
 	t := file.ModTime()
 	headers["Content-Length"] = fmt.Sprintf("%v", file.Size())
-	headers["Last-Modified"] = t.Format(iso8601TimeFormat)
+	headers["Last-Modified"] = t.Format(RFC822Format)
 	headers["ETag"] = "xxx"
 	headers["X-Amz-Meta-Autovia"] = "ARCHIVE_ACCESS"
 
@@ -162,7 +164,7 @@ func GetObject(app *S.App, w http.ResponseWriter, r *S.Request) error {
 	headers := make(map[string]string)
 	t := stats.ModTime()
 	headers["Content-Length"] = fmt.Sprintf("%v", stats.Size())
-	headers["Last-Modified"] = t.Format(iso8601TimeFormat)
+	headers["Last-Modified"] = t.Format(RFC822Format)
 
 	return app.RespondFile(w, http.StatusOK, headers, file)
 }
@@ -190,7 +192,7 @@ func ListObjectVersions(app *S.App, w http.ResponseWriter, r *S.Request) error {
 			{
 				Object: S.Object{
 					Key:          r.Key,
-					LastModified: t.Format(iso8601TimeFormat),
+					LastModified: t.Format(ISO8601UTCFormat),
 					ETag:         "xxx",
 					Size:         stats.Size(),
 					StorageClass: "STANDARD",
@@ -213,6 +215,41 @@ func DeleteObject(app *S.App, w http.ResponseWriter, r *S.Request) error {
 	if err := os.Remove(r.Path); err != nil {
 		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
 	}
+	headers := make(map[string]string)
+	headers["Content-Length"] = "0"
 
-	return nil
+	return app.Respond(w, http.StatusOK, headers, nil)
+}
+
+func DeleteObjects(app *S.App, w http.ResponseWriter, r *S.Request, req *http.Request) error {
+	log.Printf("#DeleteObjects: %v\n", r)
+
+	body, _ := io.ReadAll(req.Body)
+	var delete S.Delete
+	err := xml.Unmarshal(body, &delete)
+	if err != nil {
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+	}
+
+	objects := []S.DeletedObject{}
+	for _, file := range delete.Objects {
+		path := strings.Join([]string{*app.Mount, r.Bucket, file.Key}, "/")
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+		}
+
+		if err := os.Remove(path); err != nil {
+			return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+		}
+		obj := S.DeletedObject{
+			Key: file.Key,
+		}
+		objects = append(objects, obj)
+	}
+
+	log.Print(">>> DEL: ", objects)
+
+	return app.RespondXML(w, http.StatusOK, S.DeleteObjectsResponse{
+		DeletedObjects: objects,
+	})
 }

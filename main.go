@@ -25,6 +25,7 @@ func main() {
 	app.Router.Handle("/", S.Auth{App: app, R: map[string]any{
 		"GET":    handlers.Get,
 		"PUT":    handlers.Put,
+		"POST":   handlers.Post,
 		"DELETE": handlers.Delete,
 		"HEAD":   handlers.Head,
 	}})
