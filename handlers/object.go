@@ -232,24 +232,40 @@ func DeleteObjects(app *S.App, w http.ResponseWriter, r *S.Request, req *http.Re
 	}
 
 	objects := []S.DeletedObject{}
+	errors := []S.DeleteError{}
 	for _, file := range delete.Objects {
 		path := strings.Join([]string{*app.Mount, r.Bucket, file.Key}, "/")
+		delErr := S.DeleteError{}
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+			delErr = S.DeleteError{
+				Code:    "NoSuchKey",
+				Message: "NoSuchKey",
+				Key:     file.Key,
+			}
 		}
 
 		if err := os.Remove(path); err != nil {
-			return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+			delErr = S.DeleteError{
+				Code:    "NoSuchKey",
+				Message: "NoSuchKey",
+				Key:     file.Key,
+			}
 		}
-		obj := S.DeletedObject{
-			Key: file.Key,
+
+		if delErr != (S.DeleteError{}) {
+			errors = append(errors, delErr)
+		} else {
+			obj := S.DeletedObject{
+				Key: file.Key,
+			}
+			objects = append(objects, obj)
 		}
-		objects = append(objects, obj)
 	}
 
 	log.Print(">>> DEL: ", objects)
 
 	return app.RespondXML(w, http.StatusOK, S.DeleteObjectsResponse{
 		DeletedObjects: objects,
+		Errors:         errors,
 	})
 }
