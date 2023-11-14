@@ -5,12 +5,14 @@ package handlers
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	S "github.com/autovia/s3-go/structs"
@@ -23,12 +25,12 @@ func ListObjectsV2(app *S.App, w http.ResponseWriter, r *S.Request) error {
 	log.Printf("#ListObjectsV2 %v\n", r)
 
 	if _, err := os.Stat(r.Path); os.IsNotExist(err) {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Bucket)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Bucket)
 	}
 
 	contents, err := os.ReadDir(r.Path)
 	if err != nil {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Bucket)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Bucket)
 	}
 
 	objects := []S.Object{}
@@ -66,25 +68,32 @@ func CopyObject(app *S.App, w http.ResponseWriter, r *S.Request, req *http.Reque
 	source := req.Header.Get("X-Amz-Copy-Source")
 	sourcePath, err := url.QueryUnescape(source)
 	if err != nil {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Bucket)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Bucket)
 	}
 
 	sourceFile, err := os.Open(*app.Mount + sourcePath)
 	if err != nil {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
 	}
 	defer sourceFile.Close()
 
+	if _, err := os.Stat(filepath.Dir(r.Path)); os.IsNotExist(err) {
+		err := os.MkdirAll(filepath.Dir(r.Path), os.ModePerm)
+		if err != nil {
+			return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
+		}
+	}
+
 	targetFile, err := os.Create(r.Path)
 	if err != nil {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
 	}
 	defer targetFile.Close()
 	io.Copy(targetFile, sourceFile)
 
 	stats, err := os.Stat(r.Path)
 	if err != nil {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
 	}
 	t := stats.ModTime()
 	return app.RespondXML(w, http.StatusOK, S.CopyObjectResponse{
@@ -93,24 +102,69 @@ func CopyObject(app *S.App, w http.ResponseWriter, r *S.Request, req *http.Reque
 	})
 }
 
+func CreateMultipartUpload(app *S.App, w http.ResponseWriter, r *S.Request) error {
+	log.Printf("#CreateMultipartUpload: %v\n", r)
+
+	if _, err := os.Stat(r.Path); !os.IsNotExist(err) {
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
+	}
+
+	if strings.HasSuffix(r.Path, "/") {
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", errors.New("path is a directory"), r.Key)
+	}
+
+	uploadID := generate(50)
+	metapath := filepath.Join(*app.Mount, *app.Metadata, uploadID)
+	if err := os.MkdirAll(metapath, os.ModePerm); err != nil {
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
+	}
+
+	newfile := filepath.Join(metapath, r.Key)
+	if _, err := os.Stat(filepath.Dir(newfile)); os.IsNotExist(err) {
+		err := os.MkdirAll(filepath.Dir(newfile), os.ModePerm)
+		if err != nil {
+			return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
+		}
+	}
+
+	f, err := os.Create(newfile)
+	if err != nil {
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
+	}
+	defer f.Close()
+
+	return app.RespondXML(w, http.StatusOK, S.InitiateMultipartUploadResponse{
+		Bucket:   r.Bucket,
+		Key:      r.Key,
+		UploadID: uploadID,
+	})
+}
+
 func PutObject(app *S.App, w http.ResponseWriter, r *S.Request, req *http.Request) error {
 	log.Printf("#PutObject: %v\n", r)
 
 	if _, err := os.Stat(r.Path); !os.IsNotExist(err) {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
 	}
 
 	if strings.HasSuffix(r.Path, "/") {
-		err := os.Mkdir(r.Path, os.ModePerm)
+		err := os.MkdirAll(r.Path, os.ModePerm)
 		if err != nil {
-			return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+			return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
 		}
 		return app.Respond(w, http.StatusOK, nil, nil)
 	}
 
+	if _, err := os.Stat(filepath.Dir(r.Path)); os.IsNotExist(err) {
+		err := os.MkdirAll(filepath.Dir(r.Path), os.ModePerm)
+		if err != nil {
+			return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
+		}
+	}
+
 	targetFile, err := os.Create(r.Path)
 	if err != nil {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
 	}
 	defer targetFile.Close()
 
@@ -124,12 +178,12 @@ func HeadObject(app *S.App, w http.ResponseWriter, r *S.Request) error {
 	log.Printf("#HeadObject: %v\n", r)
 
 	if _, err := os.Stat(r.Path); os.IsNotExist(err) {
-		return app.RespondError(w, http.StatusBadRequest, "NoSuchKey", "NoSuchKey", r.Key)
+		return app.RespondError(w, http.StatusBadRequest, "NoSuchKey", err, r.Key)
 	}
 
 	file, err := os.Stat(r.Path)
 	if err != nil {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
 	}
 
 	headers := make(map[string]string)
@@ -146,19 +200,19 @@ func GetObject(app *S.App, w http.ResponseWriter, r *S.Request) error {
 	log.Printf("#GetObject: %v\n", r)
 
 	if _, err := os.Stat(r.Path); os.IsNotExist(err) {
-		return app.RespondError(w, 400, "NoSuchKey", "NoSuchKey", r.Key)
+		return app.RespondError(w, 400, "NoSuchKey", err, r.Key)
 	}
 
 	file, err := os.Open(r.Path)
 	if err != nil {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
 	}
 	stats, err := file.Stat()
 	if err != nil {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
 	}
 	if stats.IsDir() {
-		return app.RespondError(w, 400, "NoSuchKey", "NoSuchKey", r.Key)
+		return app.RespondError(w, 400, "NoSuchKey", err, r.Key)
 	}
 
 	headers := make(map[string]string)
@@ -171,16 +225,16 @@ func GetObject(app *S.App, w http.ResponseWriter, r *S.Request) error {
 
 func ListObjectVersions(app *S.App, w http.ResponseWriter, r *S.Request) error {
 	if _, err := os.Stat(r.Path); os.IsNotExist(err) {
-		return app.RespondError(w, 400, "NoSuchKey", "NoSuchKey", r.Key)
+		return app.RespondError(w, 400, "NoSuchKey", err, r.Key)
 	}
 
 	file, err := os.Open(r.Path)
 	if err != nil {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
 	}
 	stats, err := file.Stat()
 	if err != nil {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
 	}
 	t := stats.ModTime()
 	return app.RespondXML(w, http.StatusOK, S.ListVersionsResult{
@@ -209,11 +263,11 @@ func DeleteObject(app *S.App, w http.ResponseWriter, r *S.Request) error {
 	log.Printf("#DeleteObject: %v\n", r)
 
 	if _, err := os.Stat(r.Path); os.IsNotExist(err) {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
 	}
 
-	if err := os.Remove(r.Path); err != nil {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+	if err := os.RemoveAll(r.Path); err != nil {
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
 	}
 	headers := make(map[string]string)
 	headers["Content-Length"] = "0"
@@ -228,13 +282,13 @@ func DeleteObjects(app *S.App, w http.ResponseWriter, r *S.Request, req *http.Re
 	var delete S.Delete
 	err := xml.Unmarshal(body, &delete)
 	if err != nil {
-		return app.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Key)
+		return app.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Key)
 	}
 
 	objects := []S.DeletedObject{}
 	errors := []S.DeleteError{}
 	for _, file := range delete.Objects {
-		path := strings.Join([]string{*app.Mount, r.Bucket, file.Key}, "/")
+		path := filepath.Join(*app.Mount, r.Bucket, file.Key)
 		delErr := S.DeleteError{}
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			delErr = S.DeleteError{
@@ -244,7 +298,7 @@ func DeleteObjects(app *S.App, w http.ResponseWriter, r *S.Request, req *http.Re
 			}
 		}
 
-		if err := os.Remove(path); err != nil {
+		if err := os.RemoveAll(path); err != nil {
 			delErr = S.DeleteError{
 				Code:    "NoSuchKey",
 				Message: "NoSuchKey",

@@ -20,12 +20,12 @@ func Get(a *S.App, w http.ResponseWriter, req *http.Request) error {
 
 	r, err := a.ParseRequest(req)
 	if err != nil {
-		return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
+		return a.RespondError(w, 500, "InternalError", err, r.Bucket)
 	}
 
 	stat, err := os.Stat(r.Path)
 	if os.IsNotExist(err) {
-		return a.RespondError(w, http.StatusInternalServerError, "InternalError", "InternalError", r.Bucket)
+		return a.RespondError(w, http.StatusInternalServerError, "InternalError", err, r.Bucket)
 	}
 
 	if req.URL.Query().Has("versioning") {
@@ -48,7 +48,7 @@ func Put(a *S.App, w http.ResponseWriter, req *http.Request) error {
 
 	r, err := a.ParseRequest(req)
 	if err != nil {
-		return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
+		return a.RespondError(w, 500, "InternalError", err, r.Bucket)
 	}
 
 	if len(r.Key) > 0 {
@@ -66,14 +66,18 @@ func Post(a *S.App, w http.ResponseWriter, req *http.Request) error {
 
 	r, err := a.ParseRequest(req)
 	if err != nil {
-		return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
+		return a.RespondError(w, 500, "InternalError", err, r.Bucket)
+	}
+
+	if req.URL.Query().Has("uploads") {
+		return CreateMultipartUpload(a, w, r)
 	}
 
 	if req.URL.Query().Has("delete") {
 		return DeleteObjects(a, w, r, req)
 	}
 
-	return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
+	return a.RespondError(w, 500, "InternalError", err, r.Bucket)
 }
 
 func Delete(a *S.App, w http.ResponseWriter, req *http.Request) error {
@@ -81,7 +85,7 @@ func Delete(a *S.App, w http.ResponseWriter, req *http.Request) error {
 
 	r, err := a.ParseRequest(req)
 	if err != nil {
-		return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
+		return a.RespondError(w, 500, "InternalError", err, r.Bucket)
 	}
 
 	if len(r.Key) > 0 {
@@ -96,7 +100,7 @@ func Head(a *S.App, w http.ResponseWriter, req *http.Request) error {
 
 	r, err := a.ParseRequest(req)
 	if err != nil {
-		return a.RespondError(w, 500, "InternalError", "InternalError", r.Bucket)
+		return a.RespondError(w, 500, "InternalError", err, r.Bucket)
 	}
 
 	if len(r.Key) > 0 {

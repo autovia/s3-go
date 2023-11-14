@@ -116,3 +116,10 @@ type DeletedObject struct {
 	Key                   string `xml:"Key,omitempty"`
 	VersionID             string `xml:"VersionId,omitempty"`
 }
+
+type InitiateMultipartUploadResponse struct {
+	XMLName  xml.Name `xml:"InitiateMultipartUploadResponse"`
+	Bucket   string
+	Key      string
+	UploadID string `xml:"UploadId"`
+}

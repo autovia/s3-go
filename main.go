@@ -7,6 +7,8 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/autovia/s3-go/handlers"
 	S "github.com/autovia/s3-go/structs"
@@ -18,6 +20,7 @@ func main() {
 	app.AccessKey = flag.String("access-key", "user", "aws_access_key_id")
 	app.SecretKey = flag.String("secret-key", "password", "aws_secret_access_key")
 	app.Mount = flag.String("mount", "./mount", "root directory containing the buckets and files")
+	app.Metadata = flag.String("metadata", ".s3-go", "root directory object storage metadata")
 	flag.Parse()
 
 	// Router
@@ -29,6 +32,22 @@ func main() {
 		"DELETE": handlers.Delete,
 		"HEAD":   handlers.Head,
 	}})
+
+	// Check fs folders
+	if _, err := os.Stat(*app.Mount); os.IsNotExist(err) {
+		if err := os.Mkdir(*app.Mount, os.ModePerm); err != nil {
+			log.Fatalf("Can not create storage directoy at %s", *app.Mount)
+		}
+		log.Printf("Storage directory created at %s", *app.Mount)
+	}
+
+	metadata := filepath.Join(*app.Mount, *app.Metadata)
+	if _, err := os.Stat(metadata); os.IsNotExist(err) {
+		if err := os.Mkdir(metadata, os.ModePerm); err != nil {
+			log.Fatalf("Can not create metadata directoy at %s", *app.Mount)
+		}
+		log.Printf("Metadata directory created at %s", metadata)
+	}
 
 	// Server
 	srv := &http.Server{

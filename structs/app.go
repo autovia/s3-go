@@ -13,4 +13,5 @@ type App struct {
 	AccessKey *string
 	SecretKey *string
 	Mount     *string
+	Metadata  *string
 }

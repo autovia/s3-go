@@ -61,12 +61,14 @@ type Error struct {
 	RequestId string   `xml:"RequestId"`
 }
 
-func (app *App) RespondError(w http.ResponseWriter, httpcode int, awscode string, message string, resource string) error {
+func (app *App) RespondError(w http.ResponseWriter, httpcode int, awscode string, err error, resource string) error {
 	e := Error{
 		Code:     awscode,
-		Message:  message,
+		Message:  awscode,
 		Resource: resource,
 	}
+
+	log.Print(">>>", err)
 
 	out, _ := xml.MarshalIndent(e, " ", "  ")
 	w.Header().Set("Content-Type", "application/xml")

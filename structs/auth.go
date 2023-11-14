@@ -4,6 +4,7 @@
 package structs
 
 import (
+	"errors"
 	"log"
 	"net/http"
 )
@@ -18,13 +19,13 @@ func (a Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if _, ok := a.R[r.Method]; !ok {
 		log.Print("http method not allowed")
-		a.RespondError(w, 405, "MethodNotAllowed", "MethodNotAllowed", "")
+		a.RespondError(w, 405, "MethodNotAllowed", errors.New("MethodNotAllowed"), "")
 		return
 	}
 
 	if !a.ValidSignatureV4(r) {
 		log.Print("signature not valid")
-		a.RespondError(w, 401, "UnauthorizedAccess", "UnauthorizedAccess", "")
+		a.RespondError(w, 401, "UnauthorizedAccess", errors.New("UnauthorizedAccess"), "")
 		return
 	}
 
