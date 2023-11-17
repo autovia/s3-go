@@ -4,6 +4,7 @@
 package structs
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -13,34 +14,38 @@ import (
 	"strings"
 )
 
-func (app *App) ValidSignatureV4(r *http.Request) bool {
+func (app *App) ValidSignatureV4(r *http.Request) (bool, *http.Request) {
 	//log.Printf("---%s---", r.Header.Get("Authorization"))
 
 	headers := authorizationHeader(r.Header, r.Host, r.Header.Get("Authorization"))
 	if headers == nil {
-		return false
+		return false, nil
 	}
 
+	bodyBytes, _ := io.ReadAll(r.Body)
+	r.Body.Close()
+	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
 	query := r.URL.Query()
-	canonicalRequest := canonicalRequest(r.Method, r.URL, query.Encode(), r.Body, headers)
+	canonicalRequest := canonicalRequest(r.Method, r.URL, query.Encode(), bodyBytes, headers)
 	if canonicalRequest == "" {
-		return false
+		return false, nil
 	}
 
 	stringToSign := stringToSign(canonicalRequest, *app.AccessKey, headers)
 	if stringToSign == "" {
-		return false
+		return false, nil
 	}
 
 	signature := signingKeySignature(*app.SecretKey, stringToSign, headers)
 	if signature == "" {
-		return false
+		return false, nil
 	}
 
 	//log.Print(signature)
 	//log.Print(headers["Signature"])
 
-	return signature == headers["Signature"]
+	return signature == headers["Signature"], r
 }
 
 func authorizationHeader(header http.Header, host string, req string) map[string]string {
@@ -71,7 +76,7 @@ func authorizationHeader(header http.Header, host string, req string) map[string
 	return headers
 }
 
-func canonicalRequest(method string, requestURI *url.URL, rawQuery string, bodyReader io.ReadCloser, headers map[string]string) string {
+func canonicalRequest(method string, requestURI *url.URL, rawQuery string, body []byte, headers map[string]string) string {
 	signedHeaders := strings.Split(headers["SignedHeaders"], ";")
 
 	canonicalRequest := method + "\n"                                    // <HTTPMethod>
@@ -83,7 +88,9 @@ func canonicalRequest(method string, requestURI *url.URL, rawQuery string, bodyR
 	}
 	canonicalRequest += "\n"
 	canonicalRequest += headers["SignedHeaders"] + "\n" // <SignedHeaders>
-	canonicalRequest += headers["x-amz-content-sha256"] // Hex(SHA256Hash(<payload>)
+	canonicalRequest += HexSHA256Hash(body)
+
+	//log.Print(canonicalRequest)
 
 	return canonicalRequest
 }

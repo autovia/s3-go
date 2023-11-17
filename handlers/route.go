@@ -66,7 +66,7 @@ func Post(a *S.App, w http.ResponseWriter, req *http.Request) error {
 
 	r, err := a.ParseRequest(req)
 	if err != nil {
-		return a.RespondError(w, 500, "InternalError", err, r.Bucket)
+		return a.RespondError(w, 500, "InternalError", err, "")
 	}
 
 	if req.URL.Query().Has("uploads") {
@@ -77,7 +77,7 @@ func Post(a *S.App, w http.ResponseWriter, req *http.Request) error {
 		return DeleteObjects(a, w, r, req)
 	}
 
-	return a.RespondError(w, 500, "InternalError", err, r.Bucket)
+	return a.RespondError(w, 500, "InternalError", err, "")
 }
 
 func Delete(a *S.App, w http.ResponseWriter, req *http.Request) error {

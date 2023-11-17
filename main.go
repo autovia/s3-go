@@ -16,7 +16,7 @@ import (
 
 func main() {
 	app := &S.App{}
-	app.Addr = flag.String("addr", "localhost:3000", "TCP address for the server to listen on, in the form host:port")
+	app.Addr = flag.String("addr", ":3000", "TCP address for the server to listen on, in the form host:port")
 	app.AccessKey = flag.String("access-key", "user", "aws_access_key_id")
 	app.SecretKey = flag.String("secret-key", "password", "aws_secret_access_key")
 	app.Mount = flag.String("mount", "./mount", "root directory containing the buckets and files")

@@ -23,13 +23,14 @@ func (a Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !a.ValidSignatureV4(r) {
+	valid, req := a.ValidSignatureV4(r)
+	if !valid {
 		log.Print("signature not valid")
 		a.RespondError(w, 401, "UnauthorizedAccess", errors.New("UnauthorizedAccess"), "")
 		return
 	}
 
-	err := a.R[r.Method].(func(e *App, w http.ResponseWriter, r *http.Request) error)(a.App, w, r)
+	err := a.R[req.Method].(func(e *App, w http.ResponseWriter, r *http.Request) error)(a.App, w, req)
 	if err != nil {
 		log.Print(err)
 		return
