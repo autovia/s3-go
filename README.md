@@ -26,7 +26,7 @@ cat $HOME/.aws/config
 endpoint_url=http://localhost:3000
 ```
 
-cat $HOME/.aws/config
+cat $HOME/.aws/credentials
 
 ```shell
 [default]
